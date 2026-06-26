@@ -53,7 +53,7 @@ The calculator, risk manager, and BetBurger integration are unchanged.
 |---|---|---|
 | Pinnacle (PS3838) | Sharp bookmaker | BetInAsia Black (MollyBet) — pin88 field |
 | Orbit Exchange | Betting exchange (Betfair Asia) | BetInAsia Black (MollyBet) — bf field (auto-calculated) |
-| BetBurger | Live surebet scanner | REST API (polling) |
+| BetBurger | Live surebet scanner | REST API — POST /api/v1/arbs/bot_pro_search |
 
 ---
 
@@ -94,15 +94,16 @@ sharpbot/
 | Hard stop on login failure (1 attempt only) | ✅ Complete |
 | Unit tests (9/9) | ✅ Complete |
 | dry-run mode | ✅ Complete |
-| BetBurger Live API token | ⏳ Awaiting client |
-| End-to-end live surebet test | ⏳ Pending BetBurger token |
+| BetBurger Live API token | ✅ Active |
+| End-to-end dry-run (BetBurger + BetInAsia) | ✅ Complete (2026-06-26) |
+| End-to-end live surebet test | ⏳ Pending (run during peak hours 15-22h) |
 | VPS deployment | ⏳ Pending |
 
 ---
 
 ## Unit Test Results
 
-Latest test run (2026-06-25):
+Latest test run (2026-06-26):
 
 | Test | Result |
 |---|---|
@@ -137,13 +138,21 @@ Key finding: MollyBet automatically calculates the Orbit (bf) LAY stake — only
 
 ---
 
+## BetBurger API
+
+- Endpoint: `POST https://rest-api-lv.betburger.com/api/v1/arbs/bot_pro_search`
+- Auth: `access_token` form body field (alphanumeric token from betburger.com/profile/api)
+- Note: BetBurger generates a new token on each session — update `config.yaml` after each token refresh
+
+---
+
 ## Configuration
 
 All settings live in `config/config.yaml` — editable with any text editor, no development environment needed. Copy from `config/config.yaml.example` to get started.
 
 ```yaml
 betburger:
-  api_token: "YOUR_BETBURGER_LIVE_API_TOKEN"
+  api_token: "YOUR_BETBURGER_API_TOKEN"
   polling_interval: 1.0
   per_page: 30
 
