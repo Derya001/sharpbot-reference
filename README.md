@@ -21,7 +21,8 @@ The bot automates the entire pipeline:
 7. Enforces one bet per event
 8. Hard stops on login failure — exactly 1 login attempt, no retries
 9. Auto-releases exposure after 15 minutes if no settlement signal arrives
-10. Logs all activity with structured output
+10. Automatically refreshes BetBurger API token on startup via headless login
+11. Logs all activity with structured output
 
 ---
 
@@ -61,7 +62,7 @@ The calculator, risk manager, and BetBurger integration are unchanged.
 
 ```
 sharpbot/
-├── main.py                      # Entry point (--dry-run / --test flags)
+├── main.py                      # Entry point (--dry-run / --test / --betburger-login flags)
 ├── config/
 │   ├── config.yaml              # User-editable settings (gitignored)
 │   └── config.yaml.example      # Template to copy from
@@ -71,6 +72,7 @@ sharpbot/
 │   ├── calculator.py            # Arbitrage calculator with commission correction
 │   ├── risk_manager.py          # Exposure tracking and safety checks
 │   ├── betburger.py             # BetBurger Live API client
+│   ├── betburger_auth.py        # BetBurger auto-login and token refresh
 │   ├── betinasia_playwright.py  # Playwright execution layer (BetInAsia Black)
 │   └── logger.py                # structlog setup
 └── tests/
@@ -89,6 +91,7 @@ sharpbot/
 | Risk manager (exposure, dedup, auto-release) | ✅ Complete |
 | structlog logger | ✅ Complete |
 | BetBurger Live API client | ✅ Complete |
+| BetBurger auto-auth (headless token refresh) | ✅ Complete (2026-06-27) |
 | Playwright execution layer (BetInAsia Black) | ✅ Complete |
 | DOM validation with live account | ✅ Complete (2026-06-25) |
 | Hard stop on login failure (1 attempt only) | ✅ Complete |
@@ -96,14 +99,14 @@ sharpbot/
 | dry-run mode | ✅ Complete |
 | BetBurger Live API token | ✅ Active |
 | End-to-end dry-run (BetBurger + BetInAsia) | ✅ Complete (2026-06-26) |
-| End-to-end live surebet test | ⏳ Pending (run during peak hours 15-22h) |
 | VPS deployment | ⏳ Pending |
+| End-to-end live test on VPS | ⏳ Pending |
 
 ---
 
 ## Unit Test Results
 
-Latest test run (2026-06-26):
+Latest test run (2026-06-27):
 
 | Test | Result |
 |---|---|
@@ -142,7 +145,7 @@ Key finding: MollyBet automatically calculates the Orbit (bf) LAY stake — only
 
 - Endpoint: `POST https://rest-api-lv.betburger.com/api/v1/arbs/bot_pro_search`
 - Auth: `access_token` form body field (alphanumeric token from betburger.com/profile/api)
-- Note: BetBurger generates a new token on each session — update `config.yaml` after each token refresh
+- Token refresh: handled automatically via `--betburger-login` flag — bot logs into BetBurger headlessly, extracts the current token, and updates `config.yaml`
 
 ---
 
@@ -153,6 +156,8 @@ All settings live in `config/config.yaml` — editable with any text editor, no 
 ```yaml
 betburger:
   api_token: "YOUR_BETBURGER_API_TOKEN"
+  username: "YOUR_BETBURGER_EMAIL"
+  password: "YOUR_BETBURGER_PASSWORD"
   polling_interval: 1.0
   per_page: 30
 
@@ -190,10 +195,11 @@ allowed_sports:
 pip install -r requirements.txt
 playwright install chromium
 
-python main.py --test      # smoke test — calculator + risk manager, no login needed
-python main.py --dry-run   # full run, logs everything, places no real bets
-python main.py             # live mode
-pytest tests/              # unit tests
+python main.py --betburger-login  # first run only: headless BetBurger login, token refresh
+python main.py --test             # smoke test — calculator + risk manager, no login needed
+python main.py --dry-run          # full run, logs everything, places no real bets
+python main.py                    # live mode
+pytest tests/                     # unit tests
 ```
 
 ---
@@ -205,6 +211,7 @@ Built as a freelance delivery for a client running a manual arbitrage operation.
 Key engineering decisions:
 - Playwright browser automation with persistent session — login once, reuse session across betting cycles
 - Exactly 1 login attempt allowed: failed login triggers immediate hard stop to prevent account lockout from retry loops
+- BetBurger token auto-refresh via headless login — session persists until BetBurger invalidates it, no manual token copying needed
 - MollyBet Arb calc tab flow: single betslip handles both Pinnacle and Orbit legs, submitted with one click
 - Orbit commission factored into the arbitrage calculation before any decision is made
 - Hard ROI ceiling (6%) to filter out stale or erroneous scanner signals
@@ -215,8 +222,8 @@ Key engineering decisions:
 
 ## Notes
 
-- Client credentials are excluded via `.gitignore` — `config/config.yaml` is never committed
+- Client credentials are excluded via `.gitignore` — `config/config.yaml` and `config/.betburger_session.json` are never committed
 - Balance management (deposits/withdrawals) is out of scope
 - VPS setup (Ubuntu 24.04 LTS, Frankfurt region) is the client's responsibility
-- BetBurger Live API subscription is the client's responsibility
+- BetBurger Live API subscription (API Arbs Live 2) is the client's responsibility
 - BetInAsia BLACK API was discontinued during development — execution layer redesigned to use Playwright on BetInAsia Black (MollyBet) web interface
